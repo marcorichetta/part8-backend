@@ -1,0 +1,17 @@
+{
+  "name": "part8-exercises",
+  "version": "0.0.1",
+  "main": "index.js",
+  "author": "Marco Richetta",
+  "license": "MIT",
+  "scripts": {
+    "watch": "nodemon index.js"
+  },
+  "dependencies": {
+    "apollo-server": "^2.9.14",
+    "graphql": "^14.5.8"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.2"
+  }
+}
