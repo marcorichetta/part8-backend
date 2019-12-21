@@ -110,12 +110,16 @@ const typeDefs = gql`
     }
 
     type Mutation {
-        addBook (
+        addBook(
             title: String!
             published: Int!
             author: String
             genres: [String]
         ): Book
+        editAuthor(
+            name: String!
+            setBornTo: Int!
+        ): Author
     }
 `
 
@@ -124,13 +128,13 @@ const resolvers = {
         bookCount: () => books.length,
         authorCount: () => authors.length,
         allBooks: (root, args) => {
-            
-            const byGenre = (book) => 
+
+            const byGenre = (book) =>
                 book.genres.includes(args.genre)
 
             const byAuthor = (book) =>
                 book.author === args.author
-            
+
             if (args.genre && args.author) {
                 return books.filter(byGenre).filter(byAuthor)
             }
@@ -154,6 +158,7 @@ const resolvers = {
     },
     Mutation: {
         addBook: (root, args) => {
+            console.log('Book', args)
             // Si el autor NO existe
             if (authors.find(a => a.name !== args.author)) {
                 // Crear el autor
@@ -172,6 +177,23 @@ const resolvers = {
             books = books.concat(newBook)
 
             return newBook
+        },
+        editAuthor: (root, args) => {
+            console.log('Author', args)
+            // Encontrar al autor
+            const author = authors.find(a => a.name === args.name)
+
+            if (!author) {
+                return null
+            }
+
+            // Update the author data
+            const updatedAuthor = { ...args, born: args.setBornTo }
+
+            // Replace it in the list
+            authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
+
+            return updatedAuthor
         }
     },
 }
