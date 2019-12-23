@@ -135,15 +135,22 @@ const resolvers = {
             const byAuthor = (book) =>
                 book.author === args.author
 
+            // All books
+            if (!args.genre && !args.author) {
+                return books
+            }
+
+            // Filter by genre AND author
             if (args.genre && args.author) {
                 return books.filter(byGenre).filter(byAuthor)
             }
 
+            // By genre, else by author
             if (args.genre) {
                 return books.filter(byGenre)
+            } else {
+                return books.filter(byAuthor)
             }
-
-            return books.filter(b => b.author === args.author)
         },
         allAuthors: () => {
             // Calculate the book count for each author
