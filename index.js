@@ -22,32 +22,6 @@ mongoose.connect(MONGO_PROD_URI, { useNewUrlParser: true })
         console.log('Error on connection to MongoDB:', error.message)
     })
 
-let authors = [
-    {
-        name: 'Robert Martin',
-        id: "afa51ab0-344d-11e9-a414-719c6709cf3e",
-        born: 1952,
-    },
-    {
-        name: 'Martin Fowler',
-        id: "afa5b6f0-344d-11e9-a414-719c6709cf3e",
-        born: 1963
-    },
-    {
-        name: 'Fyodor Dostoevsky',
-        id: "afa5b6f1-344d-11e9-a414-719c6709cf3e",
-        born: 1821
-    },
-    {
-        name: 'Joshua Kerievsky', // birthyear not known
-        id: "afa5b6f2-344d-11e9-a414-719c6709cf3e",
-    },
-    {
-        name: 'Sandi Metz', // birthyear not known
-        id: "afa5b6f3-344d-11e9-a414-719c6709cf3e",
-    },
-]
-
 /*
  * It would be more sensible to associate book and the author by saving 
  * the author id instead of the name to the book.
@@ -155,12 +129,22 @@ const resolvers = {
             const byAuthor = (book) =>
                 book.author === args.author
 
-            // USE POPULATE TO FILL THE RELATED FIELDS OF THE BOOK
-            let books = await Book.find({}).populate('author')
-
             // All books
             if (!args.genre && !args.author) {
-                return books
+                // USE POPULATE TO FILL THE RELATED FIELDS OF THE BOOK
+                let allBooks = await Book.find({}).populate('author')
+
+                return allBooks
+            }
+
+            // Filter by genre
+            if (args.genre) {
+
+                let booksByGenre = await Book
+                    .find({ genres: { $in: [args.genre] } })
+                    .populate('author')
+
+                return booksByGenre
             }
 
             /* // Filter by genre AND author
@@ -169,22 +153,32 @@ const resolvers = {
             }
 
             // By genre, else by author
-            if (args.genre) {
-                return books.filter(byGenre)
-            } else {
+             else {
                 return books.filter(byAuthor)
             } */
         },
-        allAuthors: () => {
+        allAuthors: async () => {
 
-            return Author.find({})
+            let authors = await Author.find({})
 
+            
             // Calculate the book count for each author
-            authors.map(a => {
-                const authorBooks = books.filter(b => b.author === a.name)
-                // Modify the author field
+            const authorsPromises = authors.map(async a => {
+
+                // Encontrar los libros en los que el campo author sea === a.id
+                const authorBooks = await Book.find({ author: { $in: a.id } })
+
+                // Modify the book count for each author
                 a.bookCount = authorBooks.length
             })
+            
+            /* 
+                Cada map crea su propia operación async
+                AllAuthors no espera a que terminen de ejecutarse
+            */
+
+            // Esperar a que se complete CADA promesa en authorsPromises
+            await Promise.all(authorsPromises)
 
             return authors
         }
@@ -232,23 +226,27 @@ const resolvers = {
 
             return newBook
         },
-        editAuthor: (root, args) => {
-            console.log('Author', args)
+        editAuthor: async (root, args) => {
             // Encontrar al autor
-            const author = authors.find(a => a.name === args.name)
+            const author = await Author.findOne({ name: args.name })
 
             if (!author) {
                 return null
             }
 
             // Update the author data
-            const updatedAuthor = { ...author, born: args.setBornTo }
+            author.born = args.setBornTo 
 
-            console.log('UPDATE', updatedAuthor)
             // Replace it in the list
-            authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
+            try {
+                await author.save()
+            } catch (error) {
+                throw new UserInputError(error.message, {
+                    invalidArgs: args
+                })
+            }
 
-            return updatedAuthor
+            return author
         }
     },
 }
