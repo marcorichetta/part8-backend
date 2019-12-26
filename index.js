@@ -1,5 +1,26 @@
-const { ApolloServer, gql } = require('apollo-server')
-const uuid = require('uuid/v1')
+require('dotenv').config()
+const jwt = require('jsonwebtoken')
+const mongoose = require('mongoose')
+const { ApolloServer, UserInputError, gql } = require('apollo-server')
+
+const Book = require('./models/book')
+const Author = require('./models/author')
+
+// Mongoose flag
+mongoose.set('useFindAndModify', false)
+
+// Get .env variables
+let MONGO_PROD_URI = process.env.GRAPHQL_PROD_MONGODB_URI
+const JWT_SECRET = process.env.JSON_SECRET_KEY
+
+// Mongoose connection
+mongoose.connect(MONGO_PROD_URI, { useNewUrlParser: true })
+    .then(() => {
+        console.log('Connected to MongoDB')
+    })
+    .catch((error) => {
+        console.log('Error on connection to MongoDB:', error.message)
+    })
 
 let authors = [
     {
@@ -32,7 +53,6 @@ let authors = [
  * the author id instead of the name to the book.
  * For simplicity we, however, save the author name.
 */
-
 let books = [
     {
         title: 'Clean Code',
@@ -97,9 +117,9 @@ const typeDefs = gql`
     type Book {
         title: String!
         published: Int!
-        author: String!
-        id: ID!
+        author: Author!
         genres: [String!]
+        id: ID!
     }
 
     type Query {
@@ -125,9 +145,9 @@ const typeDefs = gql`
 
 const resolvers = {
     Query: {
-        bookCount: () => books.length,
-        authorCount: () => authors.length,
-        allBooks: (root, args) => {
+        bookCount: () => Book.collection.countDocuments(),
+        authorCount: () => Author.collection.countDocuments(),
+        allBooks: async (root, args) => {
 
             const byGenre = (book) =>
                 book.genres.includes(args.genre)
@@ -135,12 +155,15 @@ const resolvers = {
             const byAuthor = (book) =>
                 book.author === args.author
 
+            // USE POPULATE TO FILL THE RELATED FIELDS OF THE BOOK
+            let books = await Book.find({}).populate('author')
+
             // All books
             if (!args.genre && !args.author) {
                 return books
             }
 
-            // Filter by genre AND author
+            /* // Filter by genre AND author
             if (args.genre && args.author) {
                 return books.filter(byGenre).filter(byAuthor)
             }
@@ -150,9 +173,12 @@ const resolvers = {
                 return books.filter(byGenre)
             } else {
                 return books.filter(byAuthor)
-            }
+            } */
         },
         allAuthors: () => {
+
+            return Author.find({})
+
             // Calculate the book count for each author
             authors.map(a => {
                 const authorBooks = books.filter(b => b.author === a.name)
@@ -164,24 +190,45 @@ const resolvers = {
         }
     },
     Mutation: {
-        addBook: (root, args) => {
-            console.log('Book', args)
-            // Si el autor NO existe
-            if (authors.find(a => a.name !== args.author)) {
-                // Crear el autor
-                const newAuthor = {
+        addBook: async (root, args) => {
+
+            // Buscar el autor
+            let author = await Author.findOne({ name: args.author })
+
+            // Si el autor no existe lo creamos y guardamos
+            if (!author) {
+
+                author = new Author({
                     name: args.author,
-                    id: uuid(),
                     bookCount: 1
+                })
+
+                try {
+                    // Guardarlo en el backend
+                    await author.save()
+                } catch (error) {
+                    throw new UserInputError(error.message, {
+                        invalidArgs: args
+                    })
                 }
-                // Agregarlo a la lista de autores
-                authors = authors.concat(newAuthor)
+            } 
+            
+            // Crear el libro con el autor encontrado o creado
+            const newBook = new Book({ 
+                ...args,
+                author: author
+            })
+
+            try {
+                // Guardarlo en el backend
+                await newBook.save()
+            } catch (error) {
+                throw new UserInputError(error.message, {
+                    invalidArgs: args
+                })
             }
-
-            // Lo mismo para el libro
-            const newBook = { ...args, id: uuid() }
-
-            books = books.concat(newBook)
+        
+    
 
             return newBook
         },
@@ -195,8 +242,9 @@ const resolvers = {
             }
 
             // Update the author data
-            const updatedAuthor = { ...args, born: args.setBornTo }
+            const updatedAuthor = { ...author, born: args.setBornTo }
 
+            console.log('UPDATE', updatedAuthor)
             // Replace it in the list
             authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
 
