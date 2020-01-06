@@ -134,16 +134,18 @@ const resolvers = {
         },
         allAuthors: async () => {
 
+            console.log('Author queried')
+
             let authors = await Author.find({})
 
 
-            // Calculate the book count for each author
+            // Calcular bookCount para cada autor
             const authorsPromises = authors.map(async a => {
 
                 // Encontrar los libros en los que el campo author sea === a.id
                 const authorBooks = await Book.find({ author: { $in: a.id } })
 
-                // Modify the book count for each author
+                // Modificar bookCount para cada autor con la cantidad de libros
                 a.bookCount = authorBooks.length
             })
 
