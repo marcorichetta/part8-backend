@@ -98,12 +98,6 @@ const resolvers = {
         authorCount: () => Author.collection.countDocuments(),
         allBooks: async (root, args) => {
 
-            const byGenre = (book) =>
-                book.genres.includes(args.genre)
-
-            const byAuthor = (book) =>
-                book.author === args.author
-
             // All books
             if (!args.genre && !args.author) {
                 // USE POPULATE TO FILL THE RELATED FIELDS OF THE BOOK
@@ -134,8 +128,7 @@ const resolvers = {
         },
         allAuthors: async () => {
 
-            console.log('Author queried')
-
+            // Find authors on MongoDB
             let authors = await Author.find({})
 
 
